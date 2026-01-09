@@ -171,9 +171,3 @@ If you love this assistant:
 * 🧑‍💻 Try it out and share your experience
 
 > “A truly helpful assistant doesn’t just *respond* — it *connects*.” 💙
-
----
-
-```
-
-
