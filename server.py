@@ -6,8 +6,6 @@ from flask_cors import CORS
 from livekit import api
 from livekit.api import LiveKitAPI, ListRoomsRequest
 
-import asyncio
-
 # Load environment variables
 load_dotenv()
 
@@ -34,27 +32,24 @@ async def generate_room_name():
         name = "room-" + str(uuid.uuid4())[:8]
     return name
 
-# Flask route (sync) for token generation
+# Flask route (async) for token generation — avoids creating/destroying a new
+# asyncio event loop on every request, which is the overhead of asyncio.run().
 @app.route("/getToken", methods=["GET"])
-def get_token():
+async def get_token():
     name = request.args.get("name", "guest")
     room = request.args.get("room")
 
-    async def generate():
-        nonlocal room
-        if not room:
-            room = await generate_room_name()
+    if not room:
+        room = await generate_room_name()
 
-        token = api.AccessToken(API_KEY, API_SECRET) \
-            .with_identity(name) \
-            .with_name(name) \
-            .with_grants(api.VideoGrants(
-                room_join=True,
-                room=room
-            ))
-        return token.to_jwt(), room
-
-    token_jwt, room = asyncio.run(generate())
+    token = api.AccessToken(API_KEY, API_SECRET) \
+        .with_identity(name) \
+        .with_name(name) \
+        .with_grants(api.VideoGrants(
+            room_join=True,
+            room=room
+        ))
+    token_jwt = token.to_jwt()
     return jsonify({"token": token_jwt, "room": room, "identity": name})
 
 # Run the app

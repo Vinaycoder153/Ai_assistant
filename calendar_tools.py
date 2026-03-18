@@ -18,7 +18,7 @@ def get_today_events(creds_path="token.json", timezone="Asia/Kolkata"):
         ).execute()
 
         events = events_result.get('items', [])
-        return [f"{e['summary']} at {e['start'].get('dateTime', e['start'].get('date'))}" for e in events]
+        return [f"{e.get('summary', 'Unnamed Event')} at {e['start'].get('dateTime', e['start'].get('date'))}" for e in events]
 
     except Exception as e:
         return [f"Error fetching calendar events: {str(e)}"] 

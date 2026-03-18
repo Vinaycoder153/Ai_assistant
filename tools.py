@@ -10,6 +10,21 @@ from typing import Optional
 from dotenv import load_dotenv
 from email.message import EmailMessage
 from datetime import datetime
+from collections import OrderedDict
+
+# Load environment variables once at module import time instead of per-call.
+load_dotenv()
+
+# Reuse a single DuckDuckGoSearchRun instance across all search calls to avoid
+# the overhead of creating a new object on every request.
+_ddg_search = DuckDuckGoSearchRun()
+
+# Simple in-memory TTL+LRU cache for weather results.
+# Uses an OrderedDict so the oldest entry can be evicted in O(1) when the cache
+# reaches its maximum size.  Each entry maps city (lowercase) → (timestamp, result).
+_weather_cache: OrderedDict = OrderedDict()
+_WEATHER_CACHE_TTL_SECONDS = 600   # 10 minutes
+_WEATHER_CACHE_MAX_SIZE = 100      # evict oldest when this many cities are cached
 
 
 
@@ -21,11 +36,31 @@ async def get_weather(
     Get the current weather for a given city.
     """
     try:
+        # Return cached result if still fresh to avoid hitting the external API
+        # on every call for the same city.
+        cache_key = city.lower()
+        now = datetime.now().timestamp()
+        if cache_key in _weather_cache:
+            cached_time, cached_result = _weather_cache[cache_key]
+            if now - cached_time < _WEATHER_CACHE_TTL_SECONDS:
+                # Move to end so it is treated as recently used (LRU order).
+                _weather_cache.move_to_end(cache_key)
+                logging.info(f"Weather for {city} (cached): {cached_result}")
+                return cached_result
+            # Entry is stale — remove it so fresh data is fetched.
+            del _weather_cache[cache_key]
+
         response = requests.get(
             f"https://wttr.in/{city}?format=3")
         if response.status_code == 200:
-            logging.info(f"Weather for {city}: {response.text.strip()}")
-            return response.text.strip()   
+            result = response.text.strip()
+            _weather_cache[cache_key] = (now, result)
+            _weather_cache.move_to_end(cache_key)
+            # Evict the least-recently-used entry when the cache is full.
+            if len(_weather_cache) > _WEATHER_CACHE_MAX_SIZE:
+                _weather_cache.popitem(last=False)
+            logging.info(f"Weather for {city}: {result}")
+            return result
         else:
             logging.error(f"Failed to get weather for {city}: {response.status_code}")
             return f"Could not retrieve weather for {city}."
@@ -41,7 +76,7 @@ async def search_web(
     Search the web using DuckDuckGo.
     """
     try:
-        results = DuckDuckGoSearchRun().run(tool_input=query)
+        results = _ddg_search.run(tool_input=query)
         logging.info(f"Search results for '{query}': {results}")
         return results
     except Exception as e:
@@ -65,8 +100,9 @@ async def send_email(
         message: Email body content
         cc_email: Optional CC email address
     """
-    load_dotenv()  # Ensure environment variables are loaded
-
+    # `server` is initialised to None so the finally block is always safe even
+    # when an exception is raised before the SMTP connection is established.
+    server = None
     try:
         # Gmail SMTP configuration
         smtp_server = "smtp.gmail.com"
@@ -171,8 +207,8 @@ async def db_add_data(
     """
     from db_driver import PersonalAssistantDB
     try:
-        db = PersonalAssistantDB()
-        db.add_schedule(task, time)
+        with PersonalAssistantDB() as db:
+            db.add_schedule(task, time)
         logging.info(f"Added schedule: {task} at {time}")
         return f"Schedule added: {task} at {time}"
     except Exception as e:
@@ -191,8 +227,13 @@ async def db_query_data(
     """
     from db_driver import PersonalAssistantDB
     try:
-        db = PersonalAssistantDB()
-        schedules = db.get_all_schedules() if not task else [s for s in db.get_all_schedules() if task in s[1]]
+        with PersonalAssistantDB() as db:
+            # When a task filter is provided, let the database do the filtering
+            # instead of fetching all rows and scanning them in Python.
+            if task:
+                schedules = db.get_schedules_by_task(task)
+            else:
+                schedules = db.get_all_schedules()
         if schedules:
             result = "\n".join([f"{s[1]} at {s[2]}" for s in schedules])
             logging.info(f"Queried schedules: {result}")
@@ -202,4 +243,3 @@ async def db_query_data(
     except Exception as e:
         logging.error(f"Error querying schedules: {e}")
         return "An error occurred while querying schedules."
-    
