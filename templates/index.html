@@ -1,0 +1,830 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Vinay's AI Voice Assistant</title>
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700;800&display=swap"
+    rel="stylesheet"
+  />
+
+  <!-- LiveKit Client SDK (UMD) -->
+  <script src="https://unpkg.com/livekit-client@2.5.3/dist/livekit-client.umd.min.js"></script>
+
+  <style>
+    /* ─── Design Tokens ──────────────────────────────────────────────── */
+    :root {
+      --bg-0: #03030f;
+      --bg-1: #07071a;
+      --bg-2: #0d0d24;
+      --glass: rgba(255, 255, 255, 0.035);
+      --glass-h: rgba(255, 255, 255, 0.07);
+      --border: rgba(255, 255, 255, 0.08);
+      --border-h: rgba(99, 102, 241, 0.45);
+      --indigo: #6366f1;
+      --violet: #8b5cf6;
+      --cyan: #06b6d4;
+      --pink: #ec4899;
+      --emerald: #10b981;
+      --amber: #f59e0b;
+      --red: #ef4444;
+      --text-1: #f8fafc;
+      --text-2: #94a3b8;
+      --text-3: #475569;
+      --r-sm: 12px;
+      --r-md: 18px;
+      --r-lg: 24px;
+      --r-xl: 32px;
+      --shadow-glow: 0 0 60px rgba(99, 102, 241, 0.25), 0 0 120px rgba(99, 102, 241, 0.1);
+    }
+
+    /* ─── Reset ─────────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg-0);
+      color: var(--text-1);
+      min-height: 100vh;
+      overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ─── Animated Background ────────────────────────────────────────── */
+    #bg-layer {
+      position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none;
+    }
+    .blob {
+      position: absolute; border-radius: 50%; filter: blur(130px); opacity: 0.22;
+      animation: blob-drift 22s ease-in-out infinite;
+    }
+    .blob-1 {
+      width: 700px; height: 700px;
+      background: radial-gradient(circle, #4f46e5, #7c3aed);
+      top: -250px; left: -200px; animation-delay: 0s;
+    }
+    .blob-2 {
+      width: 550px; height: 550px;
+      background: radial-gradient(circle, #0e7490, #06b6d4);
+      bottom: -180px; right: -180px; animation-delay: -8s;
+    }
+    .blob-3 {
+      width: 450px; height: 450px;
+      background: radial-gradient(circle, #9d174d, #ec4899);
+      top: 55%; left: 55%; animation-delay: -15s; opacity: 0.13;
+    }
+    @keyframes blob-drift {
+      0%, 100% { transform: translate(0, 0) scale(1); }
+      33%  { transform: translate(40px, -60px) scale(1.08); }
+      66%  { transform: translate(-30px, 30px) scale(0.93); }
+    }
+
+    /* Dot-grid overlay */
+    #bg-grid {
+      position: fixed; inset: 0; z-index: 0; pointer-events: none;
+      background-image:
+        radial-gradient(circle, rgba(99,102,241,0.18) 1px, transparent 1px);
+      background-size: 44px 44px;
+      opacity: 0.6;
+    }
+
+    /* ─── Layout ─────────────────────────────────────────────────────── */
+    #app { position: relative; z-index: 1; min-height: 100vh; display: flex; flex-direction: column; }
+
+    /* ─── Header ─────────────────────────────────────────────────────── */
+    header {
+      position: sticky; top: 0; z-index: 200;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 40px;
+      background: rgba(3, 3, 15, 0.75);
+      backdrop-filter: blur(24px);
+      border-bottom: 1px solid var(--border);
+    }
+    .logo { display: flex; align-items: center; gap: 12px; }
+    .logo-icon {
+      width: 42px; height: 42px; border-radius: 13px;
+      background: linear-gradient(135deg, var(--indigo), var(--violet));
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px;
+      box-shadow: 0 4px 20px rgba(99,102,241,0.4);
+    }
+    .logo-name {
+      font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 17px;
+      background: linear-gradient(110deg, #e0e7ff, #a5b4fc 50%, #c4b5fd);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .logo-sub { font-size: 11px; color: var(--text-3); margin-top: 1px; letter-spacing: 0.04em; }
+
+    .header-right { display: flex; align-items: center; gap: 14px; }
+    .badge {
+      display: flex; align-items: center; gap: 7px;
+      padding: 7px 14px; border-radius: 100px;
+      background: var(--glass); border: 1px solid var(--border);
+      font-size: 12px; color: var(--text-2);
+    }
+    .dot {
+      width: 8px; height: 8px; border-radius: 50%; background: var(--text-3);
+      transition: all 0.4s;
+    }
+    .dot.on  { background: var(--emerald); box-shadow: 0 0 8px var(--emerald); animation: pulse-dot 2s infinite; }
+    .dot.warn{ background: var(--amber);   box-shadow: 0 0 8px var(--amber);   animation: pulse-dot 1s infinite; }
+    .dot.err { background: var(--red);     box-shadow: 0 0 8px var(--red); }
+    @keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:0.35} }
+
+    /* ─── Main Grid ──────────────────────────────────────────────────── */
+    main {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr 420px;
+      gap: 28px;
+      padding: 36px 40px;
+      max-width: 1440px;
+      margin: 0 auto;
+      width: 100%;
+    }
+
+    /* ─── Left Column ────────────────────────────────────────────────── */
+    .left-col { display: flex; flex-direction: column; align-items: center; gap: 36px; }
+
+    /* Hero orb */
+    .orb-wrap {
+      position: relative; width: 300px; height: 300px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .ring {
+      position: absolute; border-radius: 50%;
+      animation: spin linear infinite;
+      box-shadow: inset 0 0 0 1px;
+    }
+    .ring-1 {
+      inset: 0; box-shadow: inset 0 0 0 1px rgba(99,102,241,0.25);
+      animation-duration: 12s;
+    }
+    .ring-2 {
+      inset: 22px; box-shadow: inset 0 0 0 1px rgba(139,92,246,0.2);
+      animation-duration: 8s; animation-direction: reverse;
+    }
+    .ring-3 {
+      inset: 46px; box-shadow: inset 0 0 0 1px rgba(6,182,212,0.15);
+      animation-duration: 16s;
+    }
+    /* Dash decoration on ring-1 */
+    .ring-1::before {
+      content: ''; position: absolute;
+      width: 10px; height: 10px; border-radius: 50%; top: 10px; left: 50%;
+      margin-left: -5px;
+      background: var(--indigo); box-shadow: 0 0 12px var(--indigo);
+    }
+    .ring-2::after {
+      content: ''; position: absolute;
+      width: 8px; height: 8px; border-radius: 50%; bottom: 8px; right: 20%;
+      background: var(--violet); box-shadow: 0 0 10px var(--violet);
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .orb {
+      width: 174px; height: 174px; border-radius: 50%; position: relative; z-index: 2;
+      cursor: pointer; transition: transform 0.3s, box-shadow 0.3s;
+      background: radial-gradient(circle at 32% 28%, #818cf8, #6366f1 38%, #4338ca 68%, #1e1b4b);
+      box-shadow:
+        0 0 50px rgba(99,102,241,0.45),
+        0 0 100px rgba(99,102,241,0.2),
+        inset 0 0 35px rgba(255,255,255,0.09);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .orb:hover { transform: scale(1.04); box-shadow: 0 0 80px rgba(99,102,241,0.65), 0 0 150px rgba(99,102,241,0.3), inset 0 0 50px rgba(255,255,255,0.13); }
+    .orb.state-listen {
+      animation: orb-pulse-l 1s ease-in-out infinite alternate;
+      background: radial-gradient(circle at 32% 28%, #67e8f9, #06b6d4 38%, #0891b2 68%, #0c4a6e);
+      box-shadow: 0 0 60px rgba(6,182,212,0.6), 0 0 120px rgba(6,182,212,0.25), inset 0 0 35px rgba(255,255,255,0.1);
+    }
+    .orb.state-speak {
+      animation: orb-pulse-s 0.45s ease-in-out infinite alternate;
+      background: radial-gradient(circle at 32% 28%, #d8b4fe, #a78bfa 38%, #7c3aed 68%, #2e1065);
+      box-shadow: 0 0 60px rgba(139,92,246,0.65), 0 0 120px rgba(139,92,246,0.25), inset 0 0 35px rgba(255,255,255,0.1);
+    }
+    @keyframes orb-pulse-l { from{transform:scale(0.97)} to{transform:scale(1.04)} }
+    @keyframes orb-pulse-s { from{transform:scale(1)}    to{transform:scale(1.07)} }
+
+    .orb-glyph { font-size: 42px; filter: drop-shadow(0 0 14px rgba(255,255,255,0.55)); user-select: none; }
+
+    /* Wave visualizer */
+    .viz { display: flex; align-items: center; gap: 5px; height: 56px; }
+    .vbar {
+      width: 4px; border-radius: 3px;
+      background: linear-gradient(to top, #6366f1, #a78bfa);
+      animation: vbar-idle 2.2s ease-in-out infinite;
+    }
+    .vbar:nth-child(1){animation-delay:0s;animation-duration:1.9s}
+    .vbar:nth-child(2){animation-delay:.09s;animation-duration:2.3s}
+    .vbar:nth-child(3){animation-delay:.18s;animation-duration:1.7s}
+    .vbar:nth-child(4){animation-delay:.27s;animation-duration:2.1s}
+    .vbar:nth-child(5){animation-delay:.36s;animation-duration:1.8s}
+    .vbar:nth-child(6){animation-delay:.27s;animation-duration:2.4s}
+    .vbar:nth-child(7){animation-delay:.18s;animation-duration:1.6s}
+    .vbar:nth-child(8){animation-delay:.09s;animation-duration:2.0s}
+    .vbar:nth-child(9){animation-delay:0s;animation-duration:1.9s}
+    .vbar:nth-child(10){animation-delay:.05s;animation-duration:2.2s}
+    .vbar:nth-child(11){animation-delay:.14s;animation-duration:1.75s}
+    @keyframes vbar-idle {
+      0%,100% { height: 5px; opacity:0.35 }
+      50%      { height: 18px; opacity:0.7 }
+    }
+    .viz.active .vbar {
+      animation: vbar-active 0.28s ease-in-out infinite alternate;
+      background: linear-gradient(to top, #06b6d4, #a78bfa);
+    }
+    .viz.active .vbar:nth-child(odd)  { animation-duration: 0.22s }
+    .viz.active .vbar:nth-child(even) { animation-duration: 0.34s }
+    @keyframes vbar-active {
+      from { height: 6px }
+      to   { height: 44px }
+    }
+
+    /* State label */
+    .state-lbl {
+      font-size: 13px; letter-spacing: 0.12em; text-transform: uppercase;
+      font-weight: 600; color: var(--text-2);
+    }
+
+    /* ─── Buttons ────────────────────────────────────────────────────── */
+    .btn-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; justify-content: center; }
+    .btn {
+      display: inline-flex; align-items: center; gap: 7px;
+      padding: 12px 26px; border-radius: 100px; border: none;
+      font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 600;
+      cursor: pointer; transition: transform 0.18s, box-shadow 0.18s, background 0.18s;
+      white-space: nowrap;
+    }
+    .btn:active { transform: scale(0.97) !important; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--indigo), var(--violet));
+      color: #fff;
+      box-shadow: 0 4px 20px rgba(99,102,241,0.4);
+    }
+    .btn-primary:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 8px 32px rgba(99,102,241,0.55); }
+    .btn-ghost {
+      background: var(--glass); color: var(--text-1);
+      border: 1px solid var(--border);
+    }
+    .btn-ghost:hover { background: var(--glass-h); border-color: rgba(255,255,255,0.16); }
+    .btn-danger {
+      background: rgba(239,68,68,0.12); color: #fca5a5;
+      border: 1px solid rgba(239,68,68,0.28);
+    }
+    .btn-danger:hover { background: rgba(239,68,68,0.22); }
+    .btn-icon { width: 46px; height: 46px; padding: 0; justify-content: center; font-size: 18px; border-radius: 50%; }
+
+    /* ─── Feature Grid ───────────────────────────────────────────────── */
+    .feat-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;
+      width: 100%; max-width: 520px;
+    }
+    .feat-card {
+      background: var(--glass); border: 1px solid var(--border);
+      border-radius: var(--r-md); padding: 16px 14px;
+      display: flex; flex-direction: column; align-items: center; gap: 8px;
+      transition: transform 0.18s, border-color 0.18s, background 0.18s;
+      cursor: default;
+    }
+    .feat-card:hover {
+      background: var(--glass-h); border-color: var(--border-h);
+      transform: translateY(-3px);
+    }
+    .feat-icon {
+      width: 44px; height: 44px; border-radius: 12px;
+      display: flex; align-items: center; justify-content: center; font-size: 20px;
+    }
+    .ic-indigo { background: rgba(99,102,241,0.18); }
+    .ic-violet { background: rgba(139,92,246,0.18); }
+    .ic-cyan   { background: rgba(6,182,212,0.18); }
+    .ic-pink   { background: rgba(236,72,153,0.18); }
+    .ic-green  { background: rgba(16,185,129,0.18); }
+    .ic-amber  { background: rgba(245,158,11,0.18); }
+    .feat-lbl { font-size: 12px; font-weight: 600; color: var(--text-2); text-align: center; }
+
+    /* ─── Stats Bar ──────────────────────────────────────────────────── */
+    .stats { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; width: 100%; max-width: 520px; }
+    .stat {
+      background: var(--glass); border: 1px solid var(--border);
+      border-radius: var(--r-md); padding: 16px 10px; text-align: center;
+    }
+    .stat-val {
+      font-family: 'Space Grotesk', sans-serif; font-size: 26px; font-weight: 700;
+      background: linear-gradient(120deg, #f8fafc, #a5b4fc);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .stat-name { font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-3); margin-top: 3px; }
+
+    /* ─── Right Column — Chat ────────────────────────────────────────── */
+    .right-col {
+      display: flex; flex-direction: column;
+      height: calc(100vh - 90px);
+      position: sticky; top: 90px;
+    }
+    .chat-box {
+      flex: 1; display: flex; flex-direction: column; overflow: hidden;
+      background: var(--glass); border: 1px solid var(--border);
+      border-radius: var(--r-xl); backdrop-filter: blur(24px);
+    }
+    .chat-hdr {
+      padding: 18px 24px; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+      flex-shrink: 0;
+    }
+    .chat-hdr h3 {
+      font-family: 'Space Grotesk', sans-serif; font-size: 16px; font-weight: 600;
+    }
+    .icon-btn {
+      width: 32px; height: 32px; border-radius: 9px;
+      background: transparent; border: 1px solid var(--border);
+      color: var(--text-2); cursor: pointer; display: flex; align-items: center;
+      justify-content: center; font-size: 15px; transition: background 0.15s, color 0.15s;
+    }
+    .icon-btn:hover { background: var(--glass-h); color: var(--text-1); }
+
+    .chat-msgs {
+      flex: 1; overflow-y: auto; padding: 20px 22px;
+      display: flex; flex-direction: column; gap: 18px;
+      scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.08) transparent;
+    }
+    .chat-msgs::-webkit-scrollbar { width: 3px; }
+    .chat-msgs::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 2px; }
+
+    /* Empty state */
+    .chat-empty {
+      flex: 1; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 10px;
+      color: var(--text-3); text-align: center; padding: 40px;
+    }
+    .chat-empty-ico { font-size: 52px; opacity: 0.25; }
+    .chat-empty p { font-size: 13px; line-height: 1.6; }
+
+    /* Messages */
+    .msg { display: flex; gap: 10px; animation: msg-in 0.28s ease-out; }
+    .msg.user { flex-direction: row-reverse; }
+    @keyframes msg-in { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:none} }
+
+    .msg-av {
+      width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center; font-size: 16px;
+    }
+    .msg-av.ai   { background: linear-gradient(135deg, var(--indigo), var(--violet)); }
+    .msg-av.user { background: linear-gradient(135deg, var(--cyan), #0891b2); }
+
+    .msg-body { max-width: 82%; }
+    .msg-bubble {
+      padding: 11px 15px; border-radius: 16px;
+      font-size: 13.5px; line-height: 1.55;
+    }
+    .msg.ai   .msg-bubble {
+      background: rgba(99,102,241,0.1); border: 1px solid rgba(99,102,241,0.18);
+      border-bottom-left-radius: 4px;
+    }
+    .msg.user .msg-bubble {
+      background: rgba(6,182,212,0.1); border: 1px solid rgba(6,182,212,0.2);
+      border-bottom-right-radius: 4px; text-align: right;
+    }
+    .msg-time {
+      font-size: 10px; color: var(--text-3); margin-top: 4px;
+      padding: 0 2px;
+    }
+    .msg.user .msg-time { text-align: right; }
+
+    /* Typing indicator */
+    .typing { display: flex; align-items: center; gap: 5px; padding: 12px 15px; }
+    .typing span {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: var(--indigo); animation: typing-bounce 1.2s infinite;
+    }
+    .typing span:nth-child(2) { animation-delay: 0.2s; }
+    .typing span:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes typing-bounce { 0%,80%,100%{transform:scale(0.6);opacity:0.4} 40%{transform:scale(1);opacity:1} }
+
+    /* Quick chips */
+    .chips {
+      padding: 12px 20px 18px; border-top: 1px solid var(--border);
+      display: flex; flex-wrap: wrap; gap: 7px; flex-shrink: 0;
+    }
+    .chip {
+      padding: 6px 14px; border-radius: 100px; font-size: 12px;
+      background: var(--glass); border: 1px solid var(--border);
+      color: var(--text-2); cursor: pointer; transition: all 0.18s;
+    }
+    .chip:hover {
+      background: rgba(99,102,241,0.14); border-color: rgba(99,102,241,0.4);
+      color: #a5b4fc;
+    }
+
+    /* ─── Toasts ─────────────────────────────────────────────────────── */
+    #toasts {
+      position: fixed; bottom: 24px; right: 24px; z-index: 9999;
+      display: flex; flex-direction: column; gap: 8px;
+    }
+    .toast {
+      display: flex; align-items: center; gap: 9px;
+      padding: 12px 18px; border-radius: var(--r-sm); border: 1px solid;
+      font-size: 13px; backdrop-filter: blur(20px);
+      animation: toast-in 0.28s ease-out;
+      max-width: 320px;
+    }
+    @keyframes toast-in { from{opacity:0;transform:translateX(16px)} to{opacity:1;transform:none} }
+    .toast.info    { background:rgba(99,102,241,0.14); border-color:rgba(99,102,241,0.3);  color:#a5b4fc; }
+    .toast.success { background:rgba(16,185,129,0.14); border-color:rgba(16,185,129,0.3);  color:#6ee7b7; }
+    .toast.warning { background:rgba(245,158,11,0.14); border-color:rgba(245,158,11,0.3);  color:#fcd34d; }
+    .toast.error   { background:rgba(239,68,68,0.14);  border-color:rgba(239,68,68,0.3);   color:#fca5a5; }
+
+    /* ─── Responsive ──────────────────────────────────────────────────── */
+    @media (max-width: 960px) {
+      main { grid-template-columns: 1fr; padding: 20px; gap: 20px; }
+      .right-col { height: 520px; position: static; }
+      header { padding: 12px 20px; }
+    }
+    @media (max-width: 480px) {
+      .feat-grid { grid-template-columns: repeat(2,1fr); }
+      .orb-wrap  { width: 240px; height: 240px; }
+      .orb       { width: 136px; height: 136px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Animated Background ──────────────────────────────────────── -->
+<div id="bg-layer">
+  <div class="blob blob-1"></div>
+  <div class="blob blob-2"></div>
+  <div class="blob blob-3"></div>
+</div>
+<div id="bg-grid"></div>
+
+<!-- ── App Shell ─────────────────────────────────────────────────── -->
+<div id="app">
+
+  <!-- Header -->
+  <header>
+    <div class="logo">
+      <div class="logo-icon">🤖</div>
+      <div>
+        <div class="logo-name">Vinay's AI Assistant</div>
+        <div class="logo-sub">Powered by Google Realtime · LiveKit</div>
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="badge">
+        <div class="dot" id="dot"></div>
+        <span id="status-txt">Not connected</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main>
+
+    <!-- ── Left Column ─────────────────────────────────────────── -->
+    <div class="left-col">
+
+      <!-- Orb -->
+      <div class="orb-wrap">
+        <div class="ring ring-1"></div>
+        <div class="ring ring-2"></div>
+        <div class="ring ring-3"></div>
+        <div class="orb" id="orb" onclick="handleConnect()">
+          <span class="orb-glyph" id="orb-glyph">✨</span>
+        </div>
+      </div>
+
+      <!-- Voice Visualizer -->
+      <div class="viz" id="viz">
+        <div class="vbar"></div><div class="vbar"></div><div class="vbar"></div>
+        <div class="vbar"></div><div class="vbar"></div><div class="vbar"></div>
+        <div class="vbar"></div><div class="vbar"></div><div class="vbar"></div>
+        <div class="vbar"></div><div class="vbar"></div>
+      </div>
+
+      <!-- State label -->
+      <div class="state-lbl" id="state-lbl">Click the orb to start</div>
+
+      <!-- Controls -->
+      <div class="btn-row">
+        <button class="btn btn-primary" id="btn-connect" onclick="handleConnect()">
+          🎙️&nbsp; Start Session
+        </button>
+        <button class="btn btn-ghost btn-icon" id="btn-mute" onclick="toggleMute()"
+                title="Mute / Unmute" style="display:none">🔊</button>
+        <button class="btn btn-danger" id="btn-end" onclick="handleDisconnect()"
+                style="display:none">⏹️&nbsp; End Session</button>
+      </div>
+
+      <!-- Features -->
+      <div class="feat-grid">
+        <div class="feat-card"><div class="feat-icon ic-indigo">🌤️</div><div class="feat-lbl">Weather</div></div>
+        <div class="feat-card"><div class="feat-icon ic-violet">🔍</div><div class="feat-lbl">Web Search</div></div>
+        <div class="feat-card"><div class="feat-icon ic-cyan">📧</div><div class="feat-lbl">Email</div></div>
+        <div class="feat-card"><div class="feat-icon ic-pink">📅</div><div class="feat-lbl">Calendar</div></div>
+        <div class="feat-card"><div class="feat-icon ic-green">💾</div><div class="feat-lbl">Tasks DB</div></div>
+        <div class="feat-card"><div class="feat-icon ic-amber">🖥️</div><div class="feat-lbl">System</div></div>
+      </div>
+
+      <!-- Stats -->
+      <div class="stats">
+        <div class="stat">
+          <div class="stat-val" id="s-time">0:00</div>
+          <div class="stat-name">Session</div>
+        </div>
+        <div class="stat">
+          <div class="stat-val" id="s-msgs">0</div>
+          <div class="stat-name">Messages</div>
+        </div>
+        <div class="stat">
+          <div class="stat-val" id="s-parts">0</div>
+          <div class="stat-name">Participants</div>
+        </div>
+      </div>
+
+    </div><!-- /left-col -->
+
+    <!-- ── Right Column — Chat ──────────────────────────────────── -->
+    <div class="right-col">
+      <div class="chat-box">
+
+        <!-- Chat Header -->
+        <div class="chat-hdr">
+          <h3>💬 Conversation</h3>
+          <button class="icon-btn" onclick="clearChat()" title="Clear chat">🗑️</button>
+        </div>
+
+        <!-- Messages -->
+        <div class="chat-msgs" id="chat-msgs">
+          <div class="chat-empty" id="chat-empty">
+            <div class="chat-empty-ico">🎙️</div>
+            <p>Start a session and speak — your<br>conversation will appear here.</p>
+          </div>
+        </div>
+
+        <!-- Quick-action chips -->
+        <div class="chips">
+          <div class="chip" onclick="hint('What\'s the weather today?')">🌤️ Weather</div>
+          <div class="chip" onclick="hint('What time is it?')">⏰ Time</div>
+          <div class="chip" onclick="hint('Search for latest AI news')">🔍 Search</div>
+          <div class="chip" onclick="hint('Set a reminder for 5 PM')">📅 Reminder</div>
+          <div class="chip" onclick="hint('Send an email to John')">📧 Email</div>
+          <div class="chip" onclick="hint('How are you today?')">👋 Chat</div>
+        </div>
+
+      </div><!-- /chat-box -->
+    </div><!-- /right-col -->
+
+  </main>
+</div><!-- /app -->
+
+<!-- Toast Container -->
+<div id="toasts"></div>
+
+
+<script>
+/* ─── Config & State ──────────────────────────────────────────────── */
+// Default identity used when joining a LiveKit session.
+// Override via URL param: ?identity=Alice
+const DEFAULT_IDENTITY = 'Vinay';
+const IDENTITY = new URLSearchParams(window.location.search).get('identity') || DEFAULT_IDENTITY;
+
+// Backend origin — when the UI is served from a dev server on port 5000,
+// forward API calls to the Flask backend on its own port 5001.
+const FLASK_PORT = '5001';
+const DEV_PORT   = '5000';
+const BACKEND = (() => {
+  const u = new URL(window.location.href);
+  u.port = u.port === DEV_PORT ? FLASK_PORT : (u.port || '');
+  return u.origin;
+})();
+
+let room          = null;
+let muted         = false;
+let msgCount      = 0;
+let sessionStart  = null;
+let timerID       = null;
+let myIdentity    = IDENTITY; // updated from the token response
+
+/* ─── LiveKit refs (populated after SDK loads) ────────────────────── */
+const LK = () => window.LivekitClient;
+
+/* ─── Utility: Toast ─────────────────────────────────────────────── */
+function toast(msg, type = 'info') {
+  const c = document.getElementById('toasts');
+  const t = document.createElement('div');
+  t.className = `toast ${type}`;
+  const icons = { info:'ℹ️', success:'✅', warning:'⚠️', error:'❌' };
+  t.innerHTML = `<span>${icons[type] || 'ℹ️'}</span><span>${msg}</span>`;
+  c.appendChild(t);
+  setTimeout(() => t.remove(), 3800);
+}
+
+/* ─── Orb / State ────────────────────────────────────────────────── */
+const ORB_STATES = {
+  idle:       { glyph:'✨', lbl:'Click the orb to start', cls:'' },
+  connecting: { glyph:'⏳', lbl:'Connecting…',            cls:'' },
+  connected:  { glyph:'✨', lbl:'Connected — say something', cls:'' },
+  listen:     { glyph:'👂', lbl:'Listening…',             cls:'state-listen' },
+  speak:      { glyph:'🗣️', lbl:'Speaking…',              cls:'state-speak' },
+  thinking:   { glyph:'🧠', lbl:'Thinking…',              cls:'' },
+};
+
+function setOrbState(key) {
+  const orb  = document.getElementById('orb');
+  const viz  = document.getElementById('viz');
+  const glyph = document.getElementById('orb-glyph');
+  const lbl  = document.getElementById('state-lbl');
+  const s = ORB_STATES[key] || ORB_STATES.idle;
+  orb.className = 'orb ' + s.cls;
+  glyph.textContent = s.glyph;
+  lbl.textContent   = s.lbl;
+  viz.classList.toggle('active', key === 'listen' || key === 'speak');
+}
+
+/* ─── Connection status dot ──────────────────────────────────────── */
+function setDot(cls, txt) {
+  document.getElementById('dot').className  = `dot ${cls}`;
+  document.getElementById('status-txt').textContent = txt;
+}
+
+/* ─── Timer ──────────────────────────────────────────────────────── */
+function startTimer() {
+  sessionStart = Date.now();
+  timerID = setInterval(() => {
+    const s = Math.floor((Date.now() - sessionStart) / 1000);
+    document.getElementById('s-time').textContent =
+      `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;
+  }, 1000);
+}
+function stopTimer() {
+  clearInterval(timerID); timerID = null;
+  document.getElementById('s-time').textContent = '0:00';
+}
+
+/* ─── Chat ───────────────────────────────────────────────────────── */
+function addMsg(text, role = 'ai') {
+  document.getElementById('chat-empty')?.remove();
+  msgCount++;
+  document.getElementById('s-msgs').textContent = msgCount;
+
+  const wrap = document.getElementById('chat-msgs');
+  const d    = document.createElement('div');
+  d.className = `msg ${role}`;
+  const time  = new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
+  const av    = role === 'ai' ? '🤖' : '👤';
+  d.innerHTML = `
+    <div class="msg-av ${role}">${av}</div>
+    <div class="msg-body">
+      <div class="msg-bubble">${escHtml(text)}</div>
+      <div class="msg-time">${time}</div>
+    </div>`;
+  wrap.appendChild(d);
+  wrap.scrollTop = wrap.scrollHeight;
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function clearChat() {
+  const wrap = document.getElementById('chat-msgs');
+  wrap.innerHTML = `
+    <div class="chat-empty" id="chat-empty">
+      <div class="chat-empty-ico">🎙️</div>
+      <p>Start a session and speak — your<br>conversation will appear here.</p>
+    </div>`;
+  msgCount = 0;
+  document.getElementById('s-msgs').textContent = '0';
+}
+
+/* ─── Quick action hint ──────────────────────────────────────────── */
+function hint(text) { toast(`Try saying: "${text}"`, 'info'); }
+
+/* ─── Connect ────────────────────────────────────────────────────── */
+async function handleConnect() {
+  if (room) return; // already connected
+
+  if (!LK()) { toast('LiveKit SDK not loaded yet', 'error'); return; }
+
+  const btnC = document.getElementById('btn-connect');
+  btnC.disabled = true;
+  btnC.innerHTML = '⏳&nbsp; Connecting…';
+  setOrbState('connecting');
+  setDot('warn', 'Connecting…');
+
+  try {
+    /* 1. Fetch token */
+    const res = await fetch(`${BACKEND}/getToken?name=${encodeURIComponent(IDENTITY)}`);
+    if (!res.ok) throw new Error(`Token request failed (${res.status})`);
+    const data = await res.json();
+
+    // Use the identity confirmed by the backend (may differ from requested)
+    myIdentity = data.identity || IDENTITY;
+
+    const livekitUrl = data.livekitUrl || '';
+    if (!livekitUrl) throw new Error('LiveKit URL not returned by backend. Please configure LIVEKIT_URL in .env');
+
+    /* 2. Create room */
+    const { Room, RoomEvent, Track } = LK();
+    room = new Room({
+      adaptiveStream: true,
+      dynacast: true,
+      audioCaptureDefaults: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+    });
+
+    /* 3. Wire events */
+    room.on(RoomEvent.Connected, async () => {
+      setDot('on', 'Connected');
+      setOrbState('connected');
+      toast('Connected to AI Assistant 🎉', 'success');
+      startTimer();
+      document.getElementById('btn-connect').style.display  = 'none';
+      document.getElementById('btn-mute').style.display     = 'flex';
+      document.getElementById('btn-end').style.display      = 'flex';
+      document.getElementById('s-parts').textContent = room.numParticipants;
+      addMsg('Hello! I\'m your AI Voice Assistant. I\'m ready to help you with weather, web search, reminders, emails, and more. How can I assist you today?', 'ai');
+      await room.localParticipant.setMicrophoneEnabled(true);
+    });
+
+    room.on(RoomEvent.Disconnected, () => {
+      setDot('', 'Disconnected');
+      setOrbState('idle');
+      stopTimer();
+      room = null; muted = false;
+      document.getElementById('btn-connect').style.display = 'flex';
+      document.getElementById('btn-connect').disabled      = false;
+      document.getElementById('btn-connect').innerHTML     = '🎙️&nbsp; Start Session';
+      document.getElementById('btn-mute').style.display   = 'none';
+      document.getElementById('btn-end').style.display    = 'none';
+      document.getElementById('btn-mute').textContent     = '🔊';
+      document.getElementById('s-parts').textContent = '0';
+      toast('Session ended', 'info');
+    });
+
+    room.on(RoomEvent.ParticipantConnected,    () => { document.getElementById('s-parts').textContent = room.numParticipants; });
+    room.on(RoomEvent.ParticipantDisconnected, () => { document.getElementById('s-parts').textContent = room.numParticipants; });
+
+    room.on(RoomEvent.ActiveSpeakersChanged, speakers => {
+      if (!room) return;
+      const aiSpeak   = speakers.some(s => s.identity !== myIdentity);
+      const userSpeak = speakers.some(s => s.identity === myIdentity);
+      if      (aiSpeak)   setOrbState('speak');
+      else if (userSpeak) setOrbState('listen');
+      else                setOrbState('connected');
+    });
+
+    room.on(RoomEvent.TrackSubscribed, (track) => {
+      if (track.kind === Track.Kind.Audio) {
+        const el = track.attach();
+        el.style.display = 'none';
+        document.body.appendChild(el);
+      }
+    });
+
+    room.on(RoomEvent.DataReceived, (payload) => {
+      try {
+        const msg = JSON.parse(new TextDecoder().decode(payload));
+        if (msg.type === 'transcript') addMsg(msg.text, msg.role === 'user' ? 'user' : 'ai');
+      } catch(_) {}
+    });
+
+    /* 4. Connect */
+    await room.connect(livekitUrl, data.token);
+
+  } catch (err) {
+    console.error(err);
+    setDot('err', 'Error');
+    setOrbState('idle');
+    toast(`Connection failed: ${err.message}`, 'error');
+    document.getElementById('btn-connect').disabled = false;
+    document.getElementById('btn-connect').innerHTML = '🎙️&nbsp; Start Session';
+    room = null;
+  }
+}
+
+/* ─── Disconnect ─────────────────────────────────────────────────── */
+async function handleDisconnect() {
+  if (room) { await room.disconnect(); }
+}
+
+/* ─── Mute ───────────────────────────────────────────────────────── */
+async function toggleMute() {
+  if (!room) return;
+  muted = !muted;
+  await room.localParticipant.setMicrophoneEnabled(!muted);
+  const btn = document.getElementById('btn-mute');
+  btn.textContent = muted ? '🔇' : '🔊';
+  btn.title       = muted ? 'Unmute microphone' : 'Mute microphone';
+  toast(muted ? 'Microphone muted 🔇' : 'Microphone unmuted 🔊', 'info');
+}
+
+/* ─── Init ───────────────────────────────────────────────────────── */
+setOrbState('idle');
+</script>
+</body>
+</html>

@@ -1,7 +1,7 @@
 import os
 import uuid
 from dotenv import load_dotenv
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
 from livekit import api
 from livekit.api import LiveKitAPI, ListRoomsRequest
@@ -34,6 +34,11 @@ async def generate_room_name():
         name = "room-" + str(uuid.uuid4())[:8]
     return name
 
+# Serve the frontend UI
+@app.route("/", methods=["GET"])
+def index():
+    return render_template("index.html")
+
 # Flask route (sync) for token generation
 @app.route("/getToken", methods=["GET"])
 def get_token():
@@ -55,7 +60,12 @@ def get_token():
         return token.to_jwt(), room
 
     token_jwt, room = asyncio.run(generate())
-    return jsonify({"token": token_jwt, "room": room, "identity": name})
+    return jsonify({
+        "token": token_jwt,
+        "room": room,
+        "identity": name,
+        "livekitUrl": LIVEKIT_URL,
+    })
 
 # Run the app
 if __name__ == "__main__":
