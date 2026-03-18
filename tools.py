@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from livekit.agents import function_tool, RunContext
 import requests
@@ -11,6 +12,10 @@ from dotenv import load_dotenv
 from email.message import EmailMessage
 from datetime import datetime
 
+load_dotenv()
+
+# Instantiate once at module level to avoid per-call overhead
+_search_tool = DuckDuckGoSearchRun()
 
 
 @function_tool()
@@ -21,8 +26,10 @@ async def get_weather(
     Get the current weather for a given city.
     """
     try:
-        response = requests.get(
-            f"https://wttr.in/{city}?format=3")
+        # Run the blocking HTTP call in a thread pool to avoid blocking the event loop
+        response = await asyncio.to_thread(
+            requests.get, f"https://wttr.in/{city}?format=3"
+        )
         if response.status_code == 200:
             logging.info(f"Weather for {city}: {response.text.strip()}")
             return response.text.strip()   
@@ -41,7 +48,8 @@ async def search_web(
     Search the web using DuckDuckGo.
     """
     try:
-        results = DuckDuckGoSearchRun().run(tool_input=query)
+        # Reuse the module-level instance; run in a thread pool to avoid blocking
+        results = await asyncio.to_thread(_search_tool.run, query)
         logging.info(f"Search results for '{query}': {results}")
         return results
     except Exception as e:
@@ -65,8 +73,6 @@ async def send_email(
         message: Email body content
         cc_email: Optional CC email address
     """
-    load_dotenv()  # Ensure environment variables are loaded
-
     try:
         # Gmail SMTP configuration
         smtp_server = "smtp.gmail.com"
@@ -95,14 +101,17 @@ async def send_email(
         # Attach message body
         msg.attach(MIMEText(message, 'plain'))
         
-        # Connect to Gmail SMTP server
-        server = smtplib.SMTP(smtp_server, smtp_port)
-        server.starttls()  # Enable TLS encryption
-        server.login(gmail_user, gmail_password)
-        
-        # Send email
-        text = msg.as_string()
-        server.sendmail(gmail_user, recipients, text)
+        # Connect to Gmail SMTP server and send in a thread pool
+        def _send():
+            smtp = smtplib.SMTP(smtp_server, smtp_port)
+            try:
+                smtp.starttls()
+                smtp.login(gmail_user, gmail_password)
+                smtp.sendmail(gmail_user, recipients, msg.as_string())
+            finally:
+                smtp.quit()
+
+        await asyncio.to_thread(_send)
         logging.info(f"Email sent successfully to {to_email}")
         return f"Email sent successfully to {to_email}"
         
@@ -115,9 +124,6 @@ async def send_email(
     except Exception as e:
         logging.error(f"Error sending email: {e}")
         return f"An error occurred while sending email: {str(e)}"
-    finally:
-        if server:
-            server.quit()
    
 @function_tool()
 async def get_current_time(
@@ -171,8 +177,8 @@ async def db_add_data(
     """
     from db_driver import PersonalAssistantDB
     try:
-        db = PersonalAssistantDB()
-        db.add_schedule(task, time)
+        with PersonalAssistantDB() as db:
+            db.add_schedule(task, time)
         logging.info(f"Added schedule: {task} at {time}")
         return f"Schedule added: {task} at {time}"
     except Exception as e:
@@ -191,8 +197,9 @@ async def db_query_data(
     """
     from db_driver import PersonalAssistantDB
     try:
-        db = PersonalAssistantDB()
-        schedules = db.get_all_schedules() if not task else [s for s in db.get_all_schedules() if task in s[1]]
+        with PersonalAssistantDB() as db:
+            # Use SQL-level filtering to avoid fetching all rows unnecessarily
+            schedules = db.get_schedules_by_task(task) if task else db.get_all_schedules()
         if schedules:
             result = "\n".join([f"{s[1]} at {s[2]}" for s in schedules])
             logging.info(f"Queried schedules: {result}")
@@ -202,4 +209,4 @@ async def db_query_data(
     except Exception as e:
         logging.error(f"Error querying schedules: {e}")
         return "An error occurred while querying schedules."
-    
+

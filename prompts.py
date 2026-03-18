@@ -13,9 +13,6 @@ use_calendar = USER_PROFILE.get("use_calendar", False)
 # Detect mood or fall back
 mood = detect_mood_from_voice() or default_mood
 
-# Fetch today’s calendar events (if enabled)
-calendar_events = get_today_events(timezone=timezone) if use_calendar else []
-
 # Assistant instruction and behavior
 INSTRUCTIONS = f"""
 You are {Name}’s personal AI voice assistant — supportive, smart, and emotionally aware.
@@ -82,6 +79,10 @@ async def get_dynamic_greeting(name: str, language: str, mood: str = None) -> st
 # Session initializer
 async def initialize_session() -> str:
     greeting = await get_dynamic_greeting(name=Name, language=lang, mood=mood)
+
+    # Fetch calendar events here (at session start) rather than at module import
+    # time, so the blocking API call does not slow down application startup.
+    calendar_events = get_today_events(timezone=timezone) if use_calendar else []
 
     welcome = f"""{greeting}
 
