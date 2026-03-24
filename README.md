@@ -6,22 +6,37 @@
   <img src="https://img.shields.io/badge/LiveKit-Agent%20Voice-blue?style=for-the-badge&logo=livechat" />
 </p>
 
-<p align="center"> <b style="font-size:1.4em; color:#00ff7f;">Smart, Secure, and Emotionally Aware Voice Assistant</b><br> Your real-time AI companion that listens, understands, and responds like a supportive partner.<br> <i style="color:#a9a9a9;">Crafted for clarity, care, and productivity.</i> </p> <p align="center"> </p> <p align="center"> <img src="https://img.shields.io/badge/Real-Time-Voice%20Processing-green?style=for-the-badge" /> <img src="https://img.shields.io/badge/Emotionally%20Aware-Yes-blue?style=for-the-badge" /> <img src="https://img.shields.io/badge/AI-Powered-purple?style=for-the-badge" /> <img src="https://img.shields.io/badge/Version-1.0.0-yellow?style=for-the-badge" /> </p> <p align="center"> <a href="#features" style="background-color:#00ff7f; color:#000; padding:10px 20px; border-radius:8px; text-decoration:none; font-weight:bold;">Explore Features</a> </p>
+<p align="center">
+  <b style="font-size:1.4em; color:#00ff7f;">Smart, Secure, and Emotionally Aware Voice Assistant</b><br>
+  Your real-time AI companion that listens, understands, and responds like a supportive partner.<br>
+  <i style="color:#a9a9a9;">Crafted for clarity, care, and productivity.</i>
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Real-Time-Voice%20Processing-green?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/Emotionally%20Aware-Yes-blue?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/AI-Powered-purple?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/Version-1.0.0-yellow?style=for-the-badge" />
+</p>
+
+<p align="center">
+  <a href="#-features" style="background-color:#00ff7f; color:#000; padding:10px 20px; border-radius:8px; text-decoration:none; font-weight:bold;">Explore Features</a>
+</p>
 
 ---
 
 ## 🌟 Features
 
-🎙️ **Real-Time Voice Conversations**  
+🎙️ **Real-Time Voice Conversations**
 Chat naturally using your voice with human-like responses powered by **Google's Realtime LLM** and **LiveKit**.
 
-🧠 **Mood Detection**  
+🧠 **Mood Detection**
 Understands how you're feeling from your voice tone and responds with empathy.
 
-🌐 **Multilingual Support**  
+🌐 **Multilingual Support**
 Speaks in both **English 🇺🇸** and **Kannada 🇮🇳**, with personalized greetings.
 
-📅 **Calendar Integration**  
+📅 **Calendar Integration**
 Provides daily event summaries and time-aware, mood-aware greetings.
 
 🎯 **Smart Utilities**
@@ -33,21 +48,23 @@ Provides daily event summaries and time-aware, mood-aware greetings.
 - Email Sending
 - Database Task Handling
 
-🔒 **Security-First Design**  
+🔒 **Security-First Design**
 Your data stays local, private, and protected. No unwanted tracking.
 
 ---
 
 ## 🛠️ Tech Stack
 
-| Tool            | Purpose                      |
-|-----------------|------------------------------|
-| **Python**      | Core language                |
-| **LiveKit**     | Real-time audio/video input  |
-| **Google LLM**  | Voice AI generation (Aoede)  |
-| **LangChain**   | Tool orchestration           |
-| **SQLite**      | Local data storage           |
-| **dotenv**      | Secure config management     |
+| Tool                       | Purpose                                           |
+|----------------------------|---------------------------------------------------|
+| **Python**                 | Core language                                     |
+| **LiveKit Agents**         | Real-time audio/video pipeline & agent framework  |
+| **Google LLM (Aoede)**     | Realtime voice AI generation                      |
+| **LangChain / DuckDuckGo** | Web search tool integration                       |
+| **Flask + Flask-CORS**     | HTTP token-generation server for LiveKit rooms    |
+| **SQLite**                 | Local schedule/task storage (`assistant_data.db`) |
+| **Google Calendar API**    | Fetching today's calendar events                  |
+| **python-dotenv**          | Secure environment-variable management            |
 
 ---
 
@@ -61,11 +78,12 @@ Your data stays local, private, and protected. No unwanted tracking.
 
 ## 🧪 How It Works
 
-1. 🎧 **Listens** to your voice and detects mood
-2. 🌞 **Greets** you based on time, mood, and language
-3. 🧠 **Understands** your intent
-4. 🛠️ **Performs** the task (reminder, search, DB update, etc.)
-5. 💬 **Responds** with a warm, natural voice
+1. 🎧 **`agent.py` starts** a LiveKit agent worker that listens to your voice in a room.
+2. 🌞 **`prompts.py`** builds a dynamic greeting based on detected mood, time of day, and language preference (from `config.py`).
+3. 🧠 **Google's Realtime LLM (Aoede)** interprets your intent and decides which tool to call.
+4. 🛠️ **`tools.py`** executes the requested action — weather lookup, web search, email, schedule management, or system commands.
+5. 💬 The assistant **responds** with a warm, natural voice back through LiveKit.
+6. 🌐 **`server.py`** runs a separate Flask HTTP server that generates secure LiveKit access tokens for frontend clients joining rooms.
 
 ---
 
@@ -73,36 +91,56 @@ Your data stays local, private, and protected. No unwanted tracking.
 
 ```bash
 # 1. Clone this repository
-git clone https://github.com/yourusername/ai-voice-assistant
-cd ai-voice-assistant
+git clone https://github.com/Vinaycoder153/Ai_assistant
+cd Ai_assistant
 
 # 2. Install dependencies
 pip install -r requirements.txt
 
 # 3. Configure environment
-cp .env.example .env
-# Add your API keys, Google credentials, and preferences
+cp .env .env.local          # or create your own .env
+# Fill in: LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET,
+#          GMAIL_USER, GMAIL_APP_PASSWORD, and any other keys
 
-# 4. Run the assistant
-python main.py
-````
+# 4a. Start the LiveKit voice agent
+python agent.py dev
+
+# 4b. (Optional) Start the token server for frontend clients
+python server.py
+```
 
 ---
 
-## 🗂️ Folder Structure
+## 🗂️ Codebase Structure
 
 ```
-📁 ai-voice-assistant/
-├── tools/                  # Task tools (weather, search, email, db)
-├── prompts.py              # Personalized prompt instructions
-├── config.py               # User settings (name, mood, language)
-├── mood_tools.py           # Detects mood from voice
-├── calendar_tools.py       # Calendar integration
-├── main.py                 # Entry point & assistant setup
-├── requirements.txt
-├── .env.example
+📁 Ai_assistant/
+├── agent.py            # LiveKit agent entry point — sets up the Assistant and connects to a room
+├── server.py           # Flask HTTP server — generates LiveKit access tokens (/getToken endpoint)
+├── tools.py            # All callable agent tools: weather, web search, email, time, app, commands, DB
+├── prompts.py          # Dynamic prompt & greeting builder (mood + time + language aware)
+├── config.py           # User profile settings (name, language, timezone, mood)
+├── mood_tools.py       # Mood detection stub (returns current mood; ready for ML/API integration)
+├── calendar_tools.py   # Google Calendar integration — fetches today's events
+├── db_driver.py        # SQLite wrapper (PersonalAssistantDB) — stores and queries schedules
+├── requirements.txt    # Python dependencies
+├── .env                # Environment variables (API keys, credentials — never commit secrets)
+├── assistant_data.db   # SQLite database file (auto-created on first run)
 └── README.md
 ```
+
+### Module Descriptions
+
+| File | Role |
+|------|------|
+| `agent.py` | Defines the `Assistant` (subclass of LiveKit `Agent`) with all registered tools, and the async `entrypoint` that starts the session and sends the opening greeting. Run with `python agent.py dev`. |
+| `server.py` | Lightweight Flask app with a single `GET /getToken` endpoint. Generates and returns a signed LiveKit JWT so browser/mobile clients can join a room. Run with `python server.py`. |
+| `tools.py` | Eight `@function_tool` async functions exposed to the LLM: `get_weather`, `search_web`, `send_email`, `get_current_time`, `open_app`, `run_command`, `db_add_data`, `db_query_data`. |
+| `prompts.py` | Builds `AGENT_INSTRUCTION` (static system prompt) and `SESSION_INSTRUCTION_FUNCTION` (async function that generates a personalised greeting). Imported by `agent.py`. |
+| `config.py` | `USER_PROFILE` dict — single source of truth for the user's name, preferred language (`en` / `kn`), timezone, and default mood. |
+| `mood_tools.py` | `detect_mood_from_voice()` — currently a stub returning `"happy"`. Intended hook for a future audio emotion model. |
+| `calendar_tools.py` | `get_today_events()` — authenticates with Google Calendar via `token.json` and returns a list of today's events as formatted strings. |
+| `db_driver.py` | `PersonalAssistantDB` class — wraps SQLite to create a `schedule` table and expose `add_schedule` / `get_all_schedules` methods used by the DB tools in `tools.py`. |
 
 ---
 
@@ -110,11 +148,11 @@ python main.py
 
 > Try saying:
 
-* “What’s the weather like today?”
-* “Remind me to call mom at 6 PM.”
-* “Open Notepad.”
-* “Add 'Buy groceries' to my tasks.”
-* “Am I sounding tired today?”
+* "What's the weather like today?"
+* "Remind me to call mom at 6 PM."
+* "Open Notepad."
+* "Add 'Buy groceries' to my tasks."
+* "Am I sounding tired today?"
 
 ---
 
@@ -128,7 +166,7 @@ Your privacy and data security are our top priorities. Here's how we keep your a
 
 ### ✅ Environment Variables
 
-* Secrets (email, API keys) are stored securely in `.env` and **never hardcoded**.
+* Secrets (email, API keys, LiveKit credentials) are stored in `.env` and **never hardcoded**.
 
 ### ✅ No Data Leaks
 
@@ -145,7 +183,7 @@ Your privacy and data security are our top priorities. Here's how we keep your a
 
 ## 🙌 Credits
 
-Made with ❤️ by [Vinay](https://github.com/yourusername)
+Made with ❤️ by [Vinay](https://github.com/Vinaycoder153)
 Voice model by **Google Realtime (Aoede)**
 Framework powered by **LiveKit Agents**
 Inspired by **JARVIS**, **Samantha (Her)**, and the idea of emotionally aware AI.
@@ -170,4 +208,4 @@ If you love this assistant:
 * 🍴 Fork it
 * 🧑‍💻 Try it out and share your experience
 
-> “A truly helpful assistant doesn’t just *respond* — it *connects*.” 💙
+> "A truly helpful assistant doesn't just *respond* — it *connects*." 💙
